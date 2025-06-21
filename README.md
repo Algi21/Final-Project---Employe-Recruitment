@@ -13,12 +13,6 @@ Perusahaan menghadapi kesulitan dalam menilai kelayakan kandidat secara objektif
   - Meningkatkan Efisiensi Proses Rekrutmen
   - Mendukung Keputusan Berbasis Data (Data-Driven Hiring)
 
-- Business Metric:
-  - Recall
-  - Precision
-  - F1 Score
-  - ROC-AOC
-
 - Benefits :
   - Penghematan Waktu dan Biaya Rekrutmen
   - Peningkatan Kualitas Rekrutmen
