@@ -51,10 +51,26 @@ st.markdown("""
 # Header
 st.markdown("""
 <div class="main-header">
-    <h1>'Logo_Tim.jpeg' Employee Eligibility Prediction System</h1>
-    <p>Prediksi Kelayakan Kandidat Karyawan dengan Machine Learning</p>
+    <div style="display: flex; align-items: center; justify-content: center; gap: 20px;">
+        <img src="data:image/jpeg;base64,{}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">
+        <div>
+            <h1 style="margin: 0;">Employee Eligibility Prediction System</h1>
+            <p style="margin: 0;">Prediksi Kelayakan Kandidat Karyawan dengan Machine Learning</p>
+        </div>
+    </div>
 </div>
-""", unsafe_allow_html=True)
+""".format(st.session_state.get('logo_base64', '')), unsafe_allow_html=True)
+
+# Load and encode logo
+try:
+    import base64
+    if 'logo_base64' not in st.session_state:
+        with open("Logo_Tim.JPEG", "rb") as img_file:
+            st.session_state.logo_base64 = base64.b64encode(img_file.read()).decode()
+        # Re-run to update the header with logo
+        st.rerun()
+except FileNotFoundError:
+    st.warning("Logo file 'Logo_Tim.JPEG' tidak ditemukan. Pastikan file logo tersedia di directory yang sama dengan app.py")
 
 # Load model (pastikan model sudah tersedia)
 @st.cache_resource
