@@ -8,7 +8,7 @@ import seaborn as sns
 # Konfigurasi halaman
 st.set_page_config(
     page_title="Employee Eligibility Prediction",
-    page_icon="Logo_Tim.JPEG",
+    page_icon="Logo_Tim.jpeg",
     layout="wide",
     initial_sidebar_state="expanded"
 )
