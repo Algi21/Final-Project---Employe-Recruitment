@@ -703,3 +703,14 @@ with tab2:
     
     else:
         st.error("❌ Model atau preprocessing components tidak dapat dimuat. Pastikan semua file tersedia.")
+# Footer
+st.markdown("---")
+st.markdown(
+    """
+    <div style='text-align: center; color: #666; padding: 1rem;'>
+        <p>Employee Eligibility Prediction System | Built with Streamlit & Machine Learning</p>
+        <p><small>🔧 Updated: Preprocessing pipeline (scaler & encoder) integrated</small></p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
