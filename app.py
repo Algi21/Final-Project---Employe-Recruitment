@@ -524,7 +524,7 @@ with tab2:
                             df['prediction'] = predictions
                             df['prediction_label'] = ['Eligible' if p == 1 else 'Not Eligible' for p in predictions]
                             df['probability_eligible'] = probabilities[:, 1]
-                            df['confidence'] = np.max(probabilities, axis=1)
+                            df['confidence'] = np.max(probabilities, axis=1) * 100
                             
                             # Display results
                             st.subheader("📊 Hasil Prediksi")
@@ -548,11 +548,14 @@ with tab2:
                                 avg_confidence = df['confidence'].mean()
                                 st.metric("Avg Confidence", f"{avg_confidence:.1f}%")
                             
-                            # Visualization
-                            fig_col1, fig_col2 = st.columns(2)
+                            # Visualization Section
+                            st.subheader("📈 Visualisasi Data")
                             
-                            with fig_col1:
-                                # Pie chart for predictions
+                            # Create three columns for visualizations
+                            viz_col1, viz_col2, viz_col3 = st.columns(3)
+                            
+                            with viz_col1:
+                                # Pie chart for predictions (tetap ada)
                                 fig1, ax1 = plt.subplots(figsize=(6, 6))
                                 labels = ['Eligible', 'Not Eligible']
                                 sizes = [eligible_count, not_eligible_count]
@@ -562,56 +565,123 @@ with tab2:
                                 ax1.set_title('Distribution of Predictions')
                                 st.pyplot(fig1)
                             
-                            with fig_col2:
-                                # Histogram of confidence scores
-                                fig2, ax2 = plt.subplots(figsize=(6, 6))
-                                ax2.hist(df['confidence'], bins=20, color='skyblue', alpha=0.7, edgecolor='black')
-                                ax2.set_xlabel('Confidence Score')
-                                ax2.set_ylabel('Count')
-                                ax2.set_title('Distribution of Confidence Scores')
-                                st.pyplot(fig2)
+                            with viz_col2:
+                                # Stacked bar chart: Education Level vs Prediction
+                                if 'education_level' in df.columns:
+                                    # Create education labels
+                                    education_labels = {0: 'Bachelor', 1: 'Master', 2: 'PhD'}
+                                    df['education_label'] = df['education_level'].map(education_labels)
+                                    
+                                    # Create crosstab for education vs prediction
+                                    edu_pred_crosstab = pd.crosstab(df['education_label'], df['prediction_label'])
+                                    
+                                    # Calculate percentages
+                                    edu_pred_pct = edu_pred_crosstab.div(edu_pred_crosstab.sum(axis=1), axis=0) * 100
+                                    
+                                    fig2, ax2 = plt.subplots(figsize=(8, 6))
+                                    edu_pred_pct.plot(kind='bar', stacked=True, ax=ax2, 
+                                                     color=['#ff6b6b', '#51cf66'], width=0.7)
+                                    ax2.set_title('Education Level vs Prediction (%)')
+                                    ax2.set_xlabel('Education Level')
+                                    ax2.set_ylabel('Percentage (%)')
+                                    ax2.legend(title='Prediction')
+                                    ax2.set_xticklabels(ax2.get_xticklabels(), rotation=45)
+                                    
+                                    # Add percentage labels on bars
+                                    for container in ax2.containers:
+                                        ax2.bar_label(container, fmt='%.1f%%', label_type='center')
+                                    
+                                    plt.tight_layout()
+                                    st.pyplot(fig2)
                             
-                            # Feature analysis
-                            st.subheader("📈 Analisis Fitur")
+                            with viz_col3:
+                                # Stacked bar chart: Internal Referral vs Prediction
+                                if 'internal_referral' in df.columns:
+                                    # Create referral labels
+                                    df['referral_label'] = df['internal_referral'].map({0: 'No Referral', 1: 'With Referral'})
+                                    
+                                    # Create crosstab for referral vs prediction
+                                    ref_pred_crosstab = pd.crosstab(df['referral_label'], df['prediction_label'])
+                                    
+                                    # Calculate percentages
+                                    ref_pred_pct = ref_pred_crosstab.div(ref_pred_crosstab.sum(axis=1), axis=0) * 100
+                                    
+                                    fig3, ax3 = plt.subplots(figsize=(8, 6))
+                                    ref_pred_pct.plot(kind='bar', stacked=True, ax=ax3, 
+                                                     color=['#ff6b6b', '#51cf66'], width=0.7)
+                                    ax3.set_title('Internal Referral vs Prediction (%)')
+                                    ax3.set_xlabel('Internal Referral')
+                                    ax3.set_ylabel('Percentage (%)')
+                                    ax3.legend(title='Prediction')
+                                    ax3.set_xticklabels(ax3.get_xticklabels(), rotation=45)
+                                    
+                                    # Add percentage labels on bars
+                                    for container in ax3.containers:
+                                        ax3.bar_label(container, fmt='%.1f%%', label_type='center')
+                                    
+                                    plt.tight_layout()
+                                    st.pyplot(fig3)
                             
-                            # Feature importance by education level
-                            if 'education_level' in df.columns:
-                                fig3, ax3 = plt.subplots(figsize=(10, 6))
-                                education_labels = {0: 'Bachelor', 1: 'Master', 2: 'PhD'}
-                                df['education_label'] = df['education_level'].map(education_labels)
-                                
-                                # Box plot using seaborn
-                                sns.boxplot(data=df, x='education_label', y='probability_eligible', ax=ax3)
-                                ax3.set_title('Probability by Education Level')
-                                ax3.set_xlabel('Education Level')
-                                ax3.set_ylabel('Probability Eligible')
-                                st.pyplot(fig3)
+                            # Correlation Heatmap
+                            st.subheader("🔥 Correlation Heatmap")
                             
-                            # Correlation with prediction
-                            numeric_columns = df.select_dtypes(include=[np.number]).columns
-                            corr_with_pred = df[numeric_columns].corrwith(df['prediction']).sort_values(ascending=False)
+                            # Select numeric columns for correlation
+                            numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
                             
-                            # Remove NaN values
-                            corr_with_pred = corr_with_pred.dropna()
+                            # Remove columns that might cause issues
+                            exclude_cols = ['probability_eligible', 'confidence']
+                            numeric_columns = [col for col in numeric_columns if col not in exclude_cols]
                             
-                            fig4, ax4 = plt.subplots(figsize=(10, 8))
-                            y_pos = np.arange(len(corr_with_pred))
+                            # Add prediction column
+                            correlation_df = df[numeric_columns + ['prediction']].copy()
                             
-                            bars = ax4.barh(y_pos, corr_with_pred.values)
-                            ax4.set_yticks(y_pos)
-                            ax4.set_yticklabels(corr_with_pred.index)
-                            ax4.set_xlabel('Correlation with Prediction')
-                            ax4.set_title('Feature Correlation with Prediction')
+                            # Calculate correlation matrix
+                            corr_matrix = correlation_df.corr()
                             
-                            # Color bars based on correlation value
-                            for i, (bar, corr_val) in enumerate(zip(bars, corr_with_pred.values)):
-                                if corr_val > 0:
-                                    bar.set_color('green')
-                                else:
-                                    bar.set_color('red')
+                            # Create heatmap
+                            fig4, ax4 = plt.subplots(figsize=(12, 10))
                             
+                            # Create mask for upper triangle (optional)
+                            mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
+                            
+                            # Generate heatmap
+                            sns.heatmap(corr_matrix, 
+                                       annot=True, 
+                                       cmap='RdBu_r', 
+                                       center=0,
+                                       mask=mask,
+                                       square=True,
+                                       fmt='.2f',
+                                       cbar_kws={"shrink": .8},
+                                       ax=ax4)
+                            
+                            ax4.set_title('Feature Correlation Heatmap\n(Including Prediction Results)', 
+                                         fontsize=14, fontweight='bold')
+                            plt.xticks(rotation=45, ha='right')
+                            plt.yticks(rotation=0)
                             plt.tight_layout()
                             st.pyplot(fig4)
+                            
+                            # Additional correlation insights
+                            st.subheader("🔍 Correlation Insights")
+                            
+                            # Get correlation with prediction
+                            pred_corr = corr_matrix['prediction'].drop('prediction').sort_values(ascending=False)
+                            
+                            # Display top positive and negative correlations
+                            col_insights1, col_insights2 = st.columns(2)
+                            
+                            with col_insights1:
+                                st.write("**Top Positive Correlations with Prediction:**")
+                                positive_corr = pred_corr[pred_corr > 0].head(5)
+                                for feature, corr_val in positive_corr.items():
+                                    st.write(f"• {feature}: {corr_val:.3f}")
+                            
+                            with col_insights2:
+                                st.write("**Top Negative Correlations with Prediction:**")
+                                negative_corr = pred_corr[pred_corr < 0].head(5)
+                                for feature, corr_val in negative_corr.items():
+                                    st.write(f"• {feature}: {corr_val:.3f}")
                             
                             # Display full results
                             st.subheader("📋 Hasil Lengkap")
@@ -633,15 +703,3 @@ with tab2:
     
     else:
         st.error("❌ Model atau preprocessing components tidak dapat dimuat. Pastikan semua file tersedia.")
-
-# Footer
-st.markdown("---")
-st.markdown(
-    """
-    <div style='text-align: center; color: #666; padding: 1rem;'>
-        <p>Employee Eligibility Prediction System | Built with Streamlit & Machine Learning</p>
-        <p><small>🔧 Updated: Preprocessing pipeline (scaler & encoder) integrated</small></p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
