@@ -72,23 +72,106 @@ st.markdown("""
 </div>
 """.format(st.session_state.get('logo_base64', '')), unsafe_allow_html=True)
 
-# Load model (pastikan model sudah tersedia)
+# Load model dan preprocessing components
 @st.cache_resource
-def load_model():
+def load_model_and_preprocessors():
     try:
+        # Load model
         model = joblib.load('LGBM_tuned.pkl')
-        return model
-    except FileNotFoundError:
-        st.error("Model file 'LGBM_tuned.pkl' tidak ditemukan. Pastikan file model sudah tersedia.")
-        return None
+        
+        # Load preprocessing components
+        scaler = joblib.load('scaler.pkl')
+        encoder = joblib.load('encoder.pkl')
+        
+        st.success("✅ Model dan preprocessing components berhasil dimuat!")
+        return model, scaler, encoder
+    except FileNotFoundError as e:
+        st.error(f"❌ File tidak ditemukan: {str(e)}")
+        st.info("Pastikan file berikut tersedia di directory yang sama dengan app.py:")
+        st.info("- LGBM_tuned.pkl")
+        st.info("- scaler.pkl") 
+        st.info("- encoder.pkl")
+        return None, None, None
+    except Exception as e:
+        st.error(f"❌ Error loading files: {str(e)}")
+        return None, None, None
 
-# Fungsi untuk prediksi dengan urutan fitur yang BENAR
+# Fungsi untuk prediksi dengan preprocessing
 def predict_eligibility(features):
-    model = load_model()
-    if model is not None:
-        prediction = model.predict([features])
-        probability = model.predict_proba([features])
-        return prediction[0], probability[0]
+    model, scaler, encoder = load_model_and_preprocessors()
+    if model is not None and scaler is not None:
+        try:
+            # Convert to DataFrame untuk memudahkan preprocessing
+            feature_df = pd.DataFrame([features], columns=CORRECT_FEATURE_ORDER)
+            
+            # Identifikasi fitur numerik yang perlu di-scale
+            # Sesuaikan dengan fitur yang di-scale saat training
+            numeric_features = [
+                'education_level', 'years_experience', 'num_relevant_skills',
+                'interview_score', 'technical_test_score', 'total_skills',
+                'avg_test_score', 'edu_exp_score'
+            ]
+            
+            # Identifikasi fitur binary/categorical (biasanya tidak perlu di-scale)
+            binary_features = [
+                'internal_referral', 'Cloud_Computing', 'Communication',
+                'Data_Visualization', 'Excel', 'Leadership', 
+                'Machine_Learning', 'Python', 'SQL'
+            ]
+            
+            # Apply scaler hanya pada fitur numerik
+            feature_df_scaled = feature_df.copy()
+            if len(numeric_features) > 0:
+                feature_df_scaled[numeric_features] = scaler.transform(feature_df[numeric_features])
+            
+            # Jika ada encoder untuk fitur kategorikal (sesuaikan dengan model Anda)
+            # Contoh: jika ada fitur kategorikal yang perlu di-encode
+            # feature_df_scaled['encoded_feature'] = encoder.transform(feature_df[['categorical_feature']])
+            
+            # Convert kembali ke array dengan urutan yang benar
+            features_processed = feature_df_scaled[CORRECT_FEATURE_ORDER].values
+            
+            # Prediksi
+            prediction = model.predict(features_processed)
+            probability = model.predict_proba(features_processed)
+            
+            return prediction[0], probability[0]
+            
+        except Exception as e:
+            st.error(f"❌ Error dalam preprocessing atau prediksi: {str(e)}")
+            return None, None
+    return None, None
+
+# Fungsi untuk batch prediction dengan preprocessing
+def batch_predict_eligibility(df):
+    model, scaler, encoder = load_model_and_preprocessors()
+    if model is not None and scaler is not None:
+        try:
+            # Identifikasi fitur numerik yang perlu di-scale
+            numeric_features = [
+                'education_level', 'years_experience', 'num_relevant_skills',
+                'interview_score', 'technical_test_score', 'total_skills',
+                'avg_test_score', 'edu_exp_score'
+            ]
+            
+            # Prepare features dengan urutan yang benar
+            features_df = df[CORRECT_FEATURE_ORDER].copy()
+            
+            # Apply scaler pada fitur numerik
+            features_df[numeric_features] = scaler.transform(features_df[numeric_features])
+            
+            # Convert ke array
+            features = features_df.values
+            
+            # Prediksi
+            predictions = model.predict(features)
+            probabilities = model.predict_proba(features)
+            
+            return predictions, probabilities
+            
+        except Exception as e:
+            st.error(f"❌ Error dalam batch prediction: {str(e)}")
+            return None, None
     return None, None
 
 # Fungsi untuk menghitung total skills
@@ -127,366 +210,375 @@ tab1, tab2 = st.tabs(["🔍 Prediksi Individual", "📊 Prediksi Batch & Analisi
 with tab1:
     st.header("Prediksi Kelayakan Kandidat Individual")
     
-    # Layout dengan kolom
-    col1, col2 = st.columns(2)
+    # Load components untuk menampilkan status
+    model, scaler, encoder = load_model_and_preprocessors()
     
-    with col1:
-        st.subheader("📋 Data Pribadi & Pengalaman")
+    if model is not None and scaler is not None:
+        # Layout dengan kolom
+        col1, col2 = st.columns(2)
         
-        # Education Level
-        education_options = {
-            "Bachelor Degree": 0,
-            "Master Degree": 1,
-            "PhD": 2
-        }
-        education_level = st.selectbox(
-            "🎓 Education Level",
-            options=list(education_options.keys()),
-            help="Pilih tingkat pendidikan terakhir"
-        )
-        
-        # Years Experience
-        years_exp_options = list(range(0, 21))
-        years_exp_options.append(">20")
-        years_experience = st.selectbox(
-            "💼 Years Experience",
-            options=years_exp_options,
-            help="Jumlah tahun pengalaman kerja"
-        )
-        
-        # Relevant Skills Count
-        num_relevant_skills = st.selectbox(
-            "🔧 Number of Relevant Skills",
-            options=list(range(0, 9)),
-            help="Jumlah keahlian yang relevan (0-8)"
-        )
-        
-        # Internal Referral
-        internal_referral = st.checkbox(
-            "🤝 Internal Referral",
-            help="Apakah kandidat memiliki referensi internal?"
-        )
-        
-    with col2:
-        st.subheader("📊 Skor Penilaian")
-        
-        # Interview Score
-        interview_score = st.slider(
-            "🎤 Interview Score",
-            min_value=1.0,
-            max_value=10.0,
-            value=5.0,
-            step=0.1,
-            help="Skor hasil wawancara (1-10)"
-        )
-        
-        # Technical Test Score
-        technical_test_score = st.slider(
-            "💻 Technical Test Score",
-            min_value=1.0,
-            max_value=10.0,
-            value=5.0,
-            step=0.1,
-            help="Skor tes teknis (1-10)"
-        )
-        
-        # Average Test Score akan dihitung otomatis
-        st.info("📝 Average Test Score akan dihitung otomatis dari Interview Score dan Technical Test Score")
-    
-    # Skills Section
-    st.subheader("🛠️ Technical Skills")
-    skills_col1, skills_col2 = st.columns(2)
-    
-    with skills_col1:
-        cloud = st.checkbox("☁️ Cloud Computing")
-        comm = st.checkbox("💬 Communication")
-        viz = st.checkbox("📊 Data Visualization")
-        excel = st.checkbox("📊 Excel")
-    
-    with skills_col2:
-        lead = st.checkbox("👑 Leadership")
-        ml = st.checkbox("🤖 Machine Learning")
-        python = st.checkbox("🐍 Python")
-        sql = st.checkbox("🗄️ SQL")
-    
-    # Collect skills
-    skills = {
-        'cloud': cloud,
-        'communication': comm,
-        'data_visualization': viz,
-        'excel': excel,
-        'leadership': lead,
-        'machine_learning': ml,
-        'python': python,
-        'sql': sql
-    }
-    
-    # Calculate derived features
-    total_skills = calculate_total_skills(skills)
-    
-    # Process years experience
-    years_exp_processed = years_experience if years_experience != ">20" else 21
-    
-    # Calculate average test score
-    avg_test_score = (interview_score + technical_test_score) / 2
-    
-    # Calculate education-experience score
-    edu_exp_score = calculate_edu_exp_score(education_options[education_level], years_exp_processed)
-    
-    # Show calculated values
-    st.subheader("🔢 Nilai yang Dihitung Otomatis")
-    calc_col1, calc_col2, calc_col3 = st.columns(3)
-    with calc_col1:
-        st.metric("Total Skills", total_skills)
-    with calc_col2:
-        st.metric("Avg Test Score", f"{avg_test_score:.1f}")
-    with calc_col3:
-        st.metric("Edu-Exp Score", edu_exp_score)
-    
-    # Prediction button
-    if st.button("🚀 Prediksi Kelayakan", type="primary"):
-        # Prepare features array dengan urutan yang BENAR
-        features = [
-            education_options[education_level],  # 0: education_level
-            years_exp_processed,                 # 1: years_experience
-            num_relevant_skills,                 # 2: num_relevant_skills
-            1 if internal_referral else 0,      # 3: internal_referral
-            interview_score,                     # 4: interview_score
-            technical_test_score,                # 5: technical_test_score
-            1 if cloud else 0,                  # 6: Cloud_Computing
-            1 if comm else 0,                   # 7: Communication
-            1 if viz else 0,                    # 8: Data_Visualization
-            1 if excel else 0,                  # 9: Excel
-            1 if lead else 0,                   # 10: Leadership
-            1 if ml else 0,                     # 11: Machine_Learning
-            1 if python else 0,                 # 12: Python
-            1 if sql else 0,                    # 13: SQL
-            total_skills,                       # 14: total_skills
-            avg_test_score,                     # 15: avg_test_score
-            edu_exp_score                       # 16: edu_exp_score
-        ]
-        
-        # Debug: Show feature values
-        st.subheader("🔍 Debug - Feature Values")
-        debug_df = pd.DataFrame({
-            'Feature': CORRECT_FEATURE_ORDER,
-            'Value': features
-        })
-        st.dataframe(debug_df, hide_index=True)
-        
-        # Make prediction
-        prediction, probability = predict_eligibility(features)
-        
-        if prediction is not None:
-            # Display results
-            st.subheader("📋 Hasil Prediksi")
+        with col1:
+            st.subheader("📋 Data Pribadi & Pengalaman")
             
-            # Result columns
-            result_col1, result_col2 = st.columns(2)
-            
-            with result_col1:
-                if prediction == 1:
-                    st.success("✅ **ELIGIBLE** - Kandidat layak diterima")
-                else:
-                    st.error("❌ **NOT ELIGIBLE** - Kandidat tidak layak diterima")
-            
-            with result_col2:
-                confidence = max(probability) * 100
-                st.metric("Confidence Level", f"{confidence:.1f}%")
-            
-            # Probability chart
-            fig, ax = plt.subplots(figsize=(8, 4))
-            categories = ['Not Eligible', 'Eligible']
-            probs = [probability[0], probability[1]]
-            colors = ['#ff6b6b', '#51cf66']
-            
-            bars = ax.bar(categories, probs, color=colors)
-            ax.set_ylabel('Probability')
-            ax.set_title('Probability Distribution')
-            ax.set_ylim(0, 1)
-            
-            # Add value labels on bars
-            for bar, prob in zip(bars, probs):
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                       f'{prob:.3f}', ha='center', va='bottom')
-            
-            st.pyplot(fig)
-            
-            # Feature summary
-            st.subheader("📊 Ringkasan Fitur")
-            summary_data = {
-                'Feature': ['Education Level', 'Years Experience', 'Interview Score', 
-                           'Technical Score', 'Total Skills', 'Avg Test Score', 'Edu-Exp Score'],
-                'Value': [education_level, years_experience, interview_score,
-                         technical_test_score, total_skills, avg_test_score, edu_exp_score]
+            # Education Level
+            education_options = {
+                "Bachelor Degree": 0,
+                "Master Degree": 1,
+                "PhD": 2
             }
-            summary_df = pd.DataFrame(summary_data)
-            st.dataframe(summary_df, hide_index=True)
+            education_level = st.selectbox(
+                "🎓 Education Level",
+                options=list(education_options.keys()),
+                help="Pilih tingkat pendidikan terakhir"
+            )
+            
+            # Years Experience
+            years_exp_options = list(range(0, 21))
+            years_exp_options.append(">20")
+            years_experience = st.selectbox(
+                "💼 Years Experience",
+                options=years_exp_options,
+                help="Jumlah tahun pengalaman kerja"
+            )
+            
+            # Relevant Skills Count
+            num_relevant_skills = st.selectbox(
+                "🔧 Number of Relevant Skills",
+                options=list(range(0, 9)),
+                help="Jumlah keahlian yang relevan (0-8)"
+            )
+            
+            # Internal Referral
+            internal_referral = st.checkbox(
+                "🤝 Internal Referral",
+                help="Apakah kandidat memiliki referensi internal?"
+            )
+            
+        with col2:
+            st.subheader("📊 Skor Penilaian")
+            
+            # Interview Score
+            interview_score = st.slider(
+                "🎤 Interview Score",
+                min_value=1.0,
+                max_value=10.0,
+                value=5.0,
+                step=0.1,
+                help="Skor hasil wawancara (1-10)"
+            )
+            
+            # Technical Test Score
+            technical_test_score = st.slider(
+                "💻 Technical Test Score",
+                min_value=1.0,
+                max_value=10.0,
+                value=5.0,
+                step=0.1,
+                help="Skor tes teknis (1-10)"
+            )
+            
+            # Average Test Score akan dihitung otomatis
+            st.info("📝 Average Test Score akan dihitung otomatis dari Interview Score dan Technical Test Score")
+        
+        # Skills Section
+        st.subheader("🛠️ Technical Skills")
+        skills_col1, skills_col2 = st.columns(2)
+        
+        with skills_col1:
+            cloud = st.checkbox("☁️ Cloud Computing")
+            comm = st.checkbox("💬 Communication")
+            viz = st.checkbox("📊 Data Visualization")
+            excel = st.checkbox("📊 Excel")
+        
+        with skills_col2:
+            lead = st.checkbox("👑 Leadership")
+            ml = st.checkbox("🤖 Machine Learning")
+            python = st.checkbox("🐍 Python")
+            sql = st.checkbox("🗄️ SQL")
+        
+        # Collect skills
+        skills = {
+            'cloud': cloud,
+            'communication': comm,
+            'data_visualization': viz,
+            'excel': excel,
+            'leadership': lead,
+            'machine_learning': ml,
+            'python': python,
+            'sql': sql
+        }
+        
+        # Calculate derived features
+        total_skills = calculate_total_skills(skills)
+        
+        # Process years experience
+        years_exp_processed = years_experience if years_experience != ">20" else 21
+        
+        # Calculate average test score
+        avg_test_score = (interview_score + technical_test_score) / 2
+        
+        # Calculate education-experience score
+        edu_exp_score = calculate_edu_exp_score(education_options[education_level], years_exp_processed)
+        
+        # Show calculated values
+        st.subheader("🔢 Nilai yang Dihitung Otomatis")
+        calc_col1, calc_col2, calc_col3 = st.columns(3)
+        with calc_col1:
+            st.metric("Total Skills", total_skills)
+        with calc_col2:
+            st.metric("Avg Test Score", f"{avg_test_score:.1f}")
+        with calc_col3:
+            st.metric("Edu-Exp Score", edu_exp_score)
+        
+        # Prediction button
+        if st.button("🚀 Prediksi Kelayakan", type="primary"):
+            # Prepare features array dengan urutan yang BENAR
+            features = [
+                education_options[education_level],  # 0: education_level
+                years_exp_processed,                 # 1: years_experience
+                num_relevant_skills,                 # 2: num_relevant_skills
+                1 if internal_referral else 0,      # 3: internal_referral
+                interview_score,                     # 4: interview_score
+                technical_test_score,                # 5: technical_test_score
+                1 if cloud else 0,                  # 6: Cloud_Computing
+                1 if comm else 0,                   # 7: Communication
+                1 if viz else 0,                    # 8: Data_Visualization
+                1 if excel else 0,                  # 9: Excel
+                1 if lead else 0,                   # 10: Leadership
+                1 if ml else 0,                     # 11: Machine_Learning
+                1 if python else 0,                 # 12: Python
+                1 if sql else 0,                    # 13: SQL
+                total_skills,                       # 14: total_skills
+                avg_test_score,                     # 15: avg_test_score
+                edu_exp_score                       # 16: edu_exp_score
+            ]
+            
+            # Debug: Show feature values (raw)
+            st.subheader("🔍 Debug - Raw Feature Values")
+            debug_df = pd.DataFrame({
+                'Feature': CORRECT_FEATURE_ORDER,
+                'Raw Value': features
+            })
+            st.dataframe(debug_df, hide_index=True)
+            
+            # Make prediction with preprocessing
+            prediction, probability = predict_eligibility(features)
+            
+            if prediction is not None:
+                # Display results
+                st.subheader("📋 Hasil Prediksi")
+                
+                # Result columns
+                result_col1, result_col2 = st.columns(2)
+                
+                with result_col1:
+                    if prediction == 1:
+                        st.success("✅ **ELIGIBLE** - Kandidat layak diterima")
+                    else:
+                        st.error("❌ **NOT ELIGIBLE** - Kandidat tidak layak diterima")
+                
+                with result_col2:
+                    confidence = max(probability) * 100
+                    st.metric("Confidence Level", f"{confidence:.1f}%")
+                
+                # Probability chart
+                fig, ax = plt.subplots(figsize=(8, 4))
+                categories = ['Not Eligible', 'Eligible']
+                probs = [probability[0], probability[1]]
+                colors = ['#ff6b6b', '#51cf66']
+                
+                bars = ax.bar(categories, probs, color=colors)
+                ax.set_ylabel('Probability')
+                ax.set_title('Probability Distribution')
+                ax.set_ylim(0, 1)
+                
+                # Add value labels on bars
+                for bar, prob in zip(bars, probs):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                           f'{prob:.3f}', ha='center', va='bottom')
+                
+                st.pyplot(fig)
+                
+                # Feature summary
+                st.subheader("📊 Ringkasan Fitur")
+                summary_data = {
+                    'Feature': ['Education Level', 'Years Experience', 'Interview Score', 
+                               'Technical Score', 'Total Skills', 'Avg Test Score', 'Edu-Exp Score'],
+                    'Value': [education_level, years_experience, interview_score,
+                             technical_test_score, total_skills, avg_test_score, edu_exp_score]
+                }
+                summary_df = pd.DataFrame(summary_data)
+                st.dataframe(summary_df, hide_index=True)
+    
+    else:
+        st.error("❌ Model atau preprocessing components tidak dapat dimuat. Pastikan semua file tersedia.")
 
 with tab2:
     st.header("Prediksi Batch & Analisis Data")
     
-    # File upload
-    uploaded_file = st.file_uploader(
-        "📁 Upload CSV File",
-        type=['csv'],
-        help="Upload file CSV dengan kolom yang sesuai dengan fitur model"
-    )
+    # Load components untuk menampilkan status
+    model, scaler, encoder = load_model_and_preprocessors()
     
-    if uploaded_file is not None:
-        try:
-            # Read CSV
-            df = pd.read_csv(uploaded_file)
-            st.success(f"✅ File berhasil diupload! Data shape: {df.shape}")
-            
-            # Display first few rows
-            st.subheader("👀 Preview Data")
-            st.dataframe(df.head(), use_container_width=True)
-            
-            # Check columns - menggunakan urutan yang BENAR
-            expected_columns = CORRECT_FEATURE_ORDER
-            
-            missing_columns = [col for col in expected_columns if col not in df.columns]
-            
-            if missing_columns:
-                st.warning(f"⚠️ Kolom yang hilang: {', '.join(missing_columns)}")
-                st.info("Pastikan CSV memiliki semua kolom yang diperlukan untuk prediksi")
+    if model is not None and scaler is not None:
+        # File upload
+        uploaded_file = st.file_uploader(
+            "📁 Upload CSV File",
+            type=['csv'],
+            help="Upload file CSV dengan kolom yang sesuai dengan fitur model"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Read CSV
+                df = pd.read_csv(uploaded_file)
+                st.success(f"✅ File berhasil diupload! Data shape: {df.shape}")
                 
-                # Show expected column order
-                st.subheader("📋 Urutan Kolom yang Diharapkan")
-                expected_df = pd.DataFrame({
-                    'Index': range(len(expected_columns)),
-                    'Column Name': expected_columns
-                })
-                st.dataframe(expected_df, hide_index=True)
-            else:
-                # Make predictions
-                if st.button("🔮 Jalankan Prediksi Batch", type="primary"):
-                    model = load_model()
-                    if model is not None:
-                        # Prepare features dengan urutan yang BENAR
-                        features = df[expected_columns].values
-                        
-                        # Debug: Show first few rows of features
-                        st.subheader("🔍 Debug - Feature Preview")
-                        debug_preview = pd.DataFrame(features[:5], columns=expected_columns)
+                # Display first few rows
+                st.subheader("👀 Preview Data")
+                st.dataframe(df.head(), use_container_width=True)
+                
+                # Check columns - menggunakan urutan yang BENAR
+                expected_columns = CORRECT_FEATURE_ORDER
+                
+                missing_columns = [col for col in expected_columns if col not in df.columns]
+                
+                if missing_columns:
+                    st.warning(f"⚠️ Kolom yang hilang: {', '.join(missing_columns)}")
+                    st.info("Pastikan CSV memiliki semua kolom yang diperlukan untuk prediksi")
+                    
+                    # Show expected column order
+                    st.subheader("📋 Urutan Kolom yang Diharapkan")
+                    expected_df = pd.DataFrame({
+                        'Index': range(len(expected_columns)),
+                        'Column Name': expected_columns
+                    })
+                    st.dataframe(expected_df, hide_index=True)
+                else:
+                    # Make predictions
+                    if st.button("🔮 Jalankan Prediksi Batch", type="primary"):
+                        # Debug: Show first few rows of raw features
+                        st.subheader("🔍 Debug - Raw Feature Preview")
+                        debug_preview = df[expected_columns].head()
                         st.dataframe(debug_preview, use_container_width=True)
                         
-                        # Predict
-                        predictions = model.predict(features)
-                        probabilities = model.predict_proba(features)
+                        # Predict with preprocessing
+                        predictions, probabilities = batch_predict_eligibility(df)
                         
-                        # Add results to dataframe
-                        df['prediction'] = predictions
-                        df['prediction_label'] = ['Eligible' if p == 1 else 'Not Eligible' for p in predictions]
-                        df['probability_eligible'] = probabilities[:, 1]
-                        df['confidence'] = np.max(probabilities, axis=1)
-                        
-                        # Display results
-                        st.subheader("📊 Hasil Prediksi")
-                        
-                        # Summary statistics
-                        col1, col2, col3, col4 = st.columns(4)
-                        
-                        with col1:
-                            total_candidates = len(df)
-                            st.metric("Total Candidates", total_candidates)
-                        
-                        with col2:
-                            eligible_count = sum(predictions)
-                            st.metric("Eligible", eligible_count)
-                        
-                        with col3:
-                            not_eligible_count = total_candidates - eligible_count
-                            st.metric("Not Eligible", not_eligible_count)
-                        
-                        with col4:
-                            avg_confidence = df['confidence'].mean()
-                            st.metric("Avg Confidence", f"{avg_confidence:.1f}%")
-                        
-                        # Visualization
-                        fig_col1, fig_col2 = st.columns(2)
-                        
-                        with fig_col1:
-                            # Pie chart for predictions
-                            fig1, ax1 = plt.subplots(figsize=(6, 6))
-                            labels = ['Eligible', 'Not Eligible']
-                            sizes = [eligible_count, not_eligible_count]
-                            colors = ['#51cf66', '#ff6b6b']
+                        if predictions is not None:
+                            # Add results to dataframe
+                            df['prediction'] = predictions
+                            df['prediction_label'] = ['Eligible' if p == 1 else 'Not Eligible' for p in predictions]
+                            df['probability_eligible'] = probabilities[:, 1]
+                            df['confidence'] = np.max(probabilities, axis=1)
                             
-                            ax1.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
-                            ax1.set_title('Distribution of Predictions')
-                            st.pyplot(fig1)
-                        
-                        with fig_col2:
-                            # Histogram of confidence scores
-                            fig2, ax2 = plt.subplots(figsize=(6, 6))
-                            ax2.hist(df['confidence'], bins=20, color='skyblue', alpha=0.7, edgecolor='black')
-                            ax2.set_xlabel('Confidence Score')
-                            ax2.set_ylabel('Count')
-                            ax2.set_title('Distribution of Confidence Scores')
-                            st.pyplot(fig2)
-                        
-                        # Feature analysis
-                        st.subheader("📈 Analisis Fitur")
-                        
-                        # Feature importance by education level
-                        if 'education_level' in df.columns:
-                            fig3, ax3 = plt.subplots(figsize=(10, 6))
-                            education_labels = {0: 'Bachelor', 1: 'Master', 2: 'PhD'}
-                            df['education_label'] = df['education_level'].map(education_labels)
+                            # Display results
+                            st.subheader("📊 Hasil Prediksi")
                             
-                            # Box plot using seaborn
-                            sns.boxplot(data=df, x='education_label', y='probability_eligible', ax=ax3)
-                            ax3.set_title('Probability by Education Level')
-                            ax3.set_xlabel('Education Level')
-                            ax3.set_ylabel('Probability Eligible')
-                            st.pyplot(fig3)
-                        
-                        # Correlation with prediction
-                        numeric_columns = df.select_dtypes(include=[np.number]).columns
-                        corr_with_pred = df[numeric_columns].corrwith(df['prediction']).sort_values(ascending=False)
-                        
-                        # Remove NaN values
-                        corr_with_pred = corr_with_pred.dropna()
-                        
-                        fig4, ax4 = plt.subplots(figsize=(10, 8))
-                        y_pos = np.arange(len(corr_with_pred))
-                        
-                        bars = ax4.barh(y_pos, corr_with_pred.values)
-                        ax4.set_yticks(y_pos)
-                        ax4.set_yticklabels(corr_with_pred.index)
-                        ax4.set_xlabel('Correlation with Prediction')
-                        ax4.set_title('Feature Correlation with Prediction')
-                        
-                        # Color bars based on correlation value
-                        for i, (bar, corr_val) in enumerate(zip(bars, corr_with_pred.values)):
-                            if corr_val > 0:
-                                bar.set_color('green')
-                            else:
-                                bar.set_color('red')
-                        
-                        plt.tight_layout()
-                        st.pyplot(fig4)
-                        
-                        # Display full results
-                        st.subheader("📋 Hasil Lengkap")
-                        result_df = df[['prediction_label', 'probability_eligible', 'confidence'] + expected_columns]
-                        st.dataframe(result_df, use_container_width=True)
-                        
-                        # Download results
-                        csv = result_df.to_csv(index=False)
-                        st.download_button(
-                            label="💾 Download Results as CSV",
-                            data=csv,
-                            file_name="prediction_results.csv",
-                            mime="text/csv"
-                        )
-                        
-        except Exception as e:
-            st.error(f"❌ Error processing file: {str(e)}")
-            st.info("Pastikan file CSV memiliki format yang benar")
+                            # Summary statistics
+                            col1, col2, col3, col4 = st.columns(4)
+                            
+                            with col1:
+                                total_candidates = len(df)
+                                st.metric("Total Candidates", total_candidates)
+                            
+                            with col2:
+                                eligible_count = sum(predictions)
+                                st.metric("Eligible", eligible_count)
+                            
+                            with col3:
+                                not_eligible_count = total_candidates - eligible_count
+                                st.metric("Not Eligible", not_eligible_count)
+                            
+                            with col4:
+                                avg_confidence = df['confidence'].mean()
+                                st.metric("Avg Confidence", f"{avg_confidence:.1f}%")
+                            
+                            # Visualization
+                            fig_col1, fig_col2 = st.columns(2)
+                            
+                            with fig_col1:
+                                # Pie chart for predictions
+                                fig1, ax1 = plt.subplots(figsize=(6, 6))
+                                labels = ['Eligible', 'Not Eligible']
+                                sizes = [eligible_count, not_eligible_count]
+                                colors = ['#51cf66', '#ff6b6b']
+                                
+                                ax1.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', startangle=90)
+                                ax1.set_title('Distribution of Predictions')
+                                st.pyplot(fig1)
+                            
+                            with fig_col2:
+                                # Histogram of confidence scores
+                                fig2, ax2 = plt.subplots(figsize=(6, 6))
+                                ax2.hist(df['confidence'], bins=20, color='skyblue', alpha=0.7, edgecolor='black')
+                                ax2.set_xlabel('Confidence Score')
+                                ax2.set_ylabel('Count')
+                                ax2.set_title('Distribution of Confidence Scores')
+                                st.pyplot(fig2)
+                            
+                            # Feature analysis
+                            st.subheader("📈 Analisis Fitur")
+                            
+                            # Feature importance by education level
+                            if 'education_level' in df.columns:
+                                fig3, ax3 = plt.subplots(figsize=(10, 6))
+                                education_labels = {0: 'Bachelor', 1: 'Master', 2: 'PhD'}
+                                df['education_label'] = df['education_level'].map(education_labels)
+                                
+                                # Box plot using seaborn
+                                sns.boxplot(data=df, x='education_label', y='probability_eligible', ax=ax3)
+                                ax3.set_title('Probability by Education Level')
+                                ax3.set_xlabel('Education Level')
+                                ax3.set_ylabel('Probability Eligible')
+                                st.pyplot(fig3)
+                            
+                            # Correlation with prediction
+                            numeric_columns = df.select_dtypes(include=[np.number]).columns
+                            corr_with_pred = df[numeric_columns].corrwith(df['prediction']).sort_values(ascending=False)
+                            
+                            # Remove NaN values
+                            corr_with_pred = corr_with_pred.dropna()
+                            
+                            fig4, ax4 = plt.subplots(figsize=(10, 8))
+                            y_pos = np.arange(len(corr_with_pred))
+                            
+                            bars = ax4.barh(y_pos, corr_with_pred.values)
+                            ax4.set_yticks(y_pos)
+                            ax4.set_yticklabels(corr_with_pred.index)
+                            ax4.set_xlabel('Correlation with Prediction')
+                            ax4.set_title('Feature Correlation with Prediction')
+                            
+                            # Color bars based on correlation value
+                            for i, (bar, corr_val) in enumerate(zip(bars, corr_with_pred.values)):
+                                if corr_val > 0:
+                                    bar.set_color('green')
+                                else:
+                                    bar.set_color('red')
+                            
+                            plt.tight_layout()
+                            st.pyplot(fig4)
+                            
+                            # Display full results
+                            st.subheader("📋 Hasil Lengkap")
+                            result_df = df[['prediction_label', 'probability_eligible', 'confidence'] + expected_columns]
+                            st.dataframe(result_df, use_container_width=True)
+                            
+                            # Download results
+                            csv = result_df.to_csv(index=False)
+                            st.download_button(
+                                label="💾 Download Results as CSV",
+                                data=csv,
+                                file_name="prediction_results.csv",
+                                mime="text/csv"
+                            )
+                            
+            except Exception as e:
+                st.error(f"❌ Error processing file: {str(e)}")
+                st.info("Pastikan file CSV memiliki format yang benar")
+    
+    else:
+        st.error("❌ Model atau preprocessing components tidak dapat dimuat. Pastikan semua file tersedia.")
 
 # Footer
 st.markdown("---")
@@ -494,7 +586,7 @@ st.markdown(
     """
     <div style='text-align: center; color: #666; padding: 1rem;'>
         <p>Employee Eligibility Prediction System | Built with Streamlit & Machine Learning</p>
-        <p><small>🔧 Fixed: Feature order corrected to match training data</small></p>
+        <p><small>🔧 Updated: Preprocessing pipeline (scaler & encoder) integrated</small></p>
     </div>
     """,
     unsafe_allow_html=True
