@@ -5,6 +5,5 @@ joblib
 pandas
 numpy
 io
-plotly.express
-plotly.graph_objects
-plotly.subplots
+matplotlib.pyplot
+seaborn
