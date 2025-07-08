@@ -48,6 +48,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Load and encode logo
+try:
+    import base64
+    if 'logo_base64' not in st.session_state:
+        with open("Logo_Tim.jpeg", "rb") as img_file:
+            st.session_state.logo_base64 = base64.b64encode(img_file.read()).decode()
+        # Re-run to update the header with logo
+        st.rerun()
+except FileNotFoundError:
+    st.warning("Logo file 'Logo_Tim.jpeg' tidak ditemukan. Pastikan file logo tersedia di directory yang sama dengan app.py")
+
 # Header
 st.markdown("""
 <div class="main-header">
@@ -61,17 +72,6 @@ st.markdown("""
 </div>
 """.format(st.session_state.get('logo_base64', '')), unsafe_allow_html=True)
 
-# Load and encode logo
-try:
-    import base64
-    if 'logo_base64' not in st.session_state:
-        with open("Logo_Tim.jpeg", "rb") as img_file:
-            st.session_state.logo_base64 = base64.b64encode(img_file.read()).decode()
-        # Re-run to update the header with logo
-        st.rerun()
-except FileNotFoundError:
-    st.warning("Logo file 'Logo_Tim.jpeg' tidak ditemukan. Pastikan file logo tersedia di directory yang sama dengan app.py")
-
 # Load model (pastikan model sudah tersedia)
 @st.cache_resource
 def load_model():
@@ -82,7 +82,7 @@ def load_model():
         st.error("Model file 'LGBM_tuned.pkl' tidak ditemukan. Pastikan file model sudah tersedia.")
         return None
 
-# Fungsi untuk prediksi
+# Fungsi untuk prediksi dengan urutan fitur yang BENAR
 def predict_eligibility(features):
     model = load_model()
     if model is not None:
@@ -94,6 +94,32 @@ def predict_eligibility(features):
 # Fungsi untuk menghitung total skills
 def calculate_total_skills(skills):
     return sum(1 for skill in skills.values() if skill)
+
+# Fungsi untuk menghitung edu_exp_score (multiplication formula)
+def calculate_edu_exp_score(education_level, years_experience):
+    # Formula: education_level * years_experience
+    return education_level * years_experience
+
+# Urutan fitur yang BENAR sesuai training data
+CORRECT_FEATURE_ORDER = [
+    'education_level',       # 0
+    'years_experience',      # 1
+    'num_relevant_skills',   # 2
+    'internal_referral',     # 3
+    'interview_score',       # 4
+    'technical_test_score',  # 5
+    'Cloud_Computing',       # 6
+    'Communication',         # 7
+    'Data_Visualization',    # 8
+    'Excel',                 # 9
+    'Leadership',            # 10
+    'Machine_Learning',      # 11
+    'Python',                # 12
+    'SQL',                   # 13
+    'total_skills',          # 14
+    'avg_test_score',        # 15
+    'edu_exp_score'          # 16
+]
 
 # Tabs
 tab1, tab2 = st.tabs(["🔍 Prediksi Individual", "📊 Prediksi Batch & Analisis"])
@@ -147,39 +173,25 @@ with tab1:
         # Interview Score
         interview_score = st.slider(
             "🎤 Interview Score",
-            min_value=1,
-            max_value=10,
-            value=5,
+            min_value=1.0,
+            max_value=10.0,
+            value=5.0,
+            step=0.1,
             help="Skor hasil wawancara (1-10)"
         )
         
         # Technical Test Score
         technical_test_score = st.slider(
             "💻 Technical Test Score",
-            min_value=1,
-            max_value=10,
-            value=5,
+            min_value=1.0,
+            max_value=10.0,
+            value=5.0,
+            step=0.1,
             help="Skor tes teknis (1-10)"
         )
         
-        # Average Test Score
-        avg_test_score = st.slider(
-            "📝 Average Test Score",
-            min_value=1,
-            max_value=10,
-            value=5,
-            help="Rata-rata skor tes (1-10)"
-        )
-        
-        # Education Experience Score
-        edu_exp_score = st.number_input(
-            "🎯 Education-Experience Score",
-            min_value=0.0,
-            max_value=100.0,
-            value=50.0,
-            step=0.1,
-            help="Skor gabungan pendidikan dan pengalaman"
-        )
+        # Average Test Score akan dihitung otomatis
+        st.info("📝 Average Test Score akan dihitung otomatis dari Interview Score dan Technical Test Score")
     
     # Skills Section
     st.subheader("🛠️ Technical Skills")
@@ -215,28 +227,52 @@ with tab1:
     # Process years experience
     years_exp_processed = years_experience if years_experience != ">20" else 21
     
+    # Calculate average test score
+    avg_test_score = (interview_score + technical_test_score) / 2
+    
+    # Calculate education-experience score
+    edu_exp_score = calculate_edu_exp_score(education_options[education_level], years_exp_processed)
+    
+    # Show calculated values
+    st.subheader("🔢 Nilai yang Dihitung Otomatis")
+    calc_col1, calc_col2, calc_col3 = st.columns(3)
+    with calc_col1:
+        st.metric("Total Skills", total_skills)
+    with calc_col2:
+        st.metric("Avg Test Score", f"{avg_test_score:.1f}")
+    with calc_col3:
+        st.metric("Edu-Exp Score", edu_exp_score)
+    
     # Prediction button
     if st.button("🚀 Prediksi Kelayakan", type="primary"):
-        # Prepare features array
+        # Prepare features array dengan urutan yang BENAR
         features = [
-            education_options[education_level],  # education_level
-            years_exp_processed,  # years_experience
-            num_relevant_skills,  # num_relevant_skills
-            1 if internal_referral else 0,  # internal_referral
-            interview_score,  # interview_score
-            technical_test_score,  # technical_test_score
-            avg_test_score,  # avg_test_score
-            edu_exp_score,  # edu_exp_score
-            total_skills,  # total_skills
-            1 if cloud else 0,  # Cloud_Computing
-            1 if comm else 0,  # Communication
-            1 if viz else 0,  # Data_Visualization
-            1 if excel else 0,  # Excel
-            1 if lead else 0,  # Leadership
-            1 if ml else 0,  # Machine_Learning
-            1 if python else 0,  # Python
-            1 if sql else 0  # SQL
+            education_options[education_level],  # 0: education_level
+            years_exp_processed,                 # 1: years_experience
+            num_relevant_skills,                 # 2: num_relevant_skills
+            1 if internal_referral else 0,      # 3: internal_referral
+            interview_score,                     # 4: interview_score
+            technical_test_score,                # 5: technical_test_score
+            1 if cloud else 0,                  # 6: Cloud_Computing
+            1 if comm else 0,                   # 7: Communication
+            1 if viz else 0,                    # 8: Data_Visualization
+            1 if excel else 0,                  # 9: Excel
+            1 if lead else 0,                   # 10: Leadership
+            1 if ml else 0,                     # 11: Machine_Learning
+            1 if python else 0,                 # 12: Python
+            1 if sql else 0,                    # 13: SQL
+            total_skills,                       # 14: total_skills
+            avg_test_score,                     # 15: avg_test_score
+            edu_exp_score                       # 16: edu_exp_score
         ]
+        
+        # Debug: Show feature values
+        st.subheader("🔍 Debug - Feature Values")
+        debug_df = pd.DataFrame({
+            'Feature': CORRECT_FEATURE_ORDER,
+            'Value': features
+        })
+        st.dataframe(debug_df, hide_index=True)
         
         # Make prediction
         prediction, probability = predict_eligibility(features)
@@ -281,9 +317,9 @@ with tab1:
             st.subheader("📊 Ringkasan Fitur")
             summary_data = {
                 'Feature': ['Education Level', 'Years Experience', 'Interview Score', 
-                           'Technical Score', 'Total Skills'],
+                           'Technical Score', 'Total Skills', 'Avg Test Score', 'Edu-Exp Score'],
                 'Value': [education_level, years_experience, interview_score,
-                         technical_test_score, total_skills]
+                         technical_test_score, total_skills, avg_test_score, edu_exp_score]
             }
             summary_df = pd.DataFrame(summary_data)
             st.dataframe(summary_df, hide_index=True)
@@ -308,27 +344,34 @@ with tab2:
             st.subheader("👀 Preview Data")
             st.dataframe(df.head(), use_container_width=True)
             
-            # Check columns
-            expected_columns = [
-                'education_level', 'years_experience', 'num_relevant_skills',
-                'internal_referral', 'interview_score', 'technical_test_score',
-                'avg_test_score', 'edu_exp_score', 'total_skills',
-                'Cloud_Computing', 'Communication', 'Data_Visualization', 'Excel',
-                'Leadership', 'Machine_Learning', 'Python', 'SQL'
-            ]
+            # Check columns - menggunakan urutan yang BENAR
+            expected_columns = CORRECT_FEATURE_ORDER
             
             missing_columns = [col for col in expected_columns if col not in df.columns]
             
             if missing_columns:
                 st.warning(f"⚠️ Kolom yang hilang: {', '.join(missing_columns)}")
                 st.info("Pastikan CSV memiliki semua kolom yang diperlukan untuk prediksi")
+                
+                # Show expected column order
+                st.subheader("📋 Urutan Kolom yang Diharapkan")
+                expected_df = pd.DataFrame({
+                    'Index': range(len(expected_columns)),
+                    'Column Name': expected_columns
+                })
+                st.dataframe(expected_df, hide_index=True)
             else:
                 # Make predictions
                 if st.button("🔮 Jalankan Prediksi Batch", type="primary"):
                     model = load_model()
                     if model is not None:
-                        # Prepare features
+                        # Prepare features dengan urutan yang BENAR
                         features = df[expected_columns].values
+                        
+                        # Debug: Show first few rows of features
+                        st.subheader("🔍 Debug - Feature Preview")
+                        debug_preview = pd.DataFrame(features[:5], columns=expected_columns)
+                        st.dataframe(debug_preview, use_container_width=True)
                         
                         # Predict
                         predictions = model.predict(features)
@@ -451,6 +494,7 @@ st.markdown(
     """
     <div style='text-align: center; color: #666; padding: 1rem;'>
         <p>Employee Eligibility Prediction System | Built with Streamlit & Machine Learning</p>
+        <p><small>🔧 Fixed: Feature order corrected to match training data</small></p>
     </div>
     """,
     unsafe_allow_html=True
