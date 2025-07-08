@@ -83,7 +83,25 @@ def load_model_and_preprocessors():
         scaler = joblib.load('scaler.pkl')
         encoder = joblib.load('encoder.pkl')
         
+        # Debug info tentang scaler
+        scaler_info = {}
+        if hasattr(scaler, 'feature_names_in_'):
+            scaler_info['features'] = list(scaler.feature_names_in_)
+            scaler_info['n_features'] = len(scaler.feature_names_in_)
+        else:
+            scaler_info['features'] = "Feature names not available"
+            scaler_info['n_features'] = "Unknown"
+        
+        if hasattr(scaler, 'scale_'):
+            scaler_info['n_features_fit'] = len(scaler.scale_)
+        
         st.success("✅ Model dan preprocessing components berhasil dimuat!")
+        
+        # Show scaler info in expander
+        with st.expander("🔍 Informasi Scaler"):
+            st.write("**Scaler Information:**")
+            st.json(scaler_info)
+        
         return model, scaler, encoder
     except FileNotFoundError as e:
         st.error(f"❌ File tidak ditemukan: {str(e)}")
@@ -104,29 +122,34 @@ def predict_eligibility(features):
             # Convert to DataFrame untuk memudahkan preprocessing
             feature_df = pd.DataFrame([features], columns=CORRECT_FEATURE_ORDER)
             
-            # Identifikasi fitur numerik yang perlu di-scale
-            # Sesuaikan dengan fitur yang di-scale saat training
-            numeric_features = [
-                'education_level', 'years_experience', 'num_relevant_skills',
-                'interview_score', 'technical_test_score', 'total_skills',
-                'avg_test_score', 'edu_exp_score'
-            ]
-            
-            # Identifikasi fitur binary/categorical (biasanya tidak perlu di-scale)
-            binary_features = [
-                'internal_referral', 'Cloud_Computing', 'Communication',
-                'Data_Visualization', 'Excel', 'Leadership', 
-                'Machine_Learning', 'Python', 'SQL'
-            ]
-            
-            # Apply scaler hanya pada fitur numerik
-            feature_df_scaled = feature_df.copy()
-            if len(numeric_features) > 0:
-                feature_df_scaled[numeric_features] = scaler.transform(feature_df[numeric_features])
-            
-            # Jika ada encoder untuk fitur kategorikal (sesuaikan dengan model Anda)
-            # Contoh: jika ada fitur kategorikal yang perlu di-encode
-            # feature_df_scaled['encoded_feature'] = encoder.transform(feature_df[['categorical_feature']])
+            # Debug: Cek fitur apa yang diharapkan oleh scaler
+            if hasattr(scaler, 'feature_names_in_'):
+                expected_features = scaler.feature_names_in_
+                st.info(f"🔍 Fitur yang diharapkan oleh scaler: {list(expected_features)}")
+                
+                # Gunakan hanya fitur yang diharapkan oleh scaler
+                available_features = [f for f in expected_features if f in feature_df.columns]
+                missing_features = [f for f in expected_features if f not in feature_df.columns]
+                
+                if missing_features:
+                    st.warning(f"⚠️ Fitur yang hilang untuk scaler: {missing_features}")
+                
+                # Apply scaler hanya pada fitur yang tersedia dan diharapkan
+                feature_df_scaled = feature_df.copy()
+                if available_features:
+                    feature_df_scaled[available_features] = scaler.transform(feature_df[available_features])
+                
+            else:
+                # Jika scaler tidak memiliki feature_names_in_, gunakan pendekatan lama
+                # Coba dengan semua fitur terlebih dahulu
+                try:
+                    feature_df_scaled = feature_df.copy()
+                    feature_df_scaled[CORRECT_FEATURE_ORDER] = scaler.transform(feature_df[CORRECT_FEATURE_ORDER])
+                except Exception as scale_error:
+                    st.error(f"❌ Error dengan scaler: {str(scale_error)}")
+                    # Fallback: gunakan fitur tanpa scaling
+                    st.warning("⚠️ Menggunakan fitur tanpa preprocessing (ini mungkin tidak akurat)")
+                    feature_df_scaled = feature_df.copy()
             
             # Convert kembali ke array dengan urutan yang benar
             features_processed = feature_df_scaled[CORRECT_FEATURE_ORDER].values
@@ -147,18 +170,32 @@ def batch_predict_eligibility(df):
     model, scaler, encoder = load_model_and_preprocessors()
     if model is not None and scaler is not None:
         try:
-            # Identifikasi fitur numerik yang perlu di-scale
-            numeric_features = [
-                'education_level', 'years_experience', 'num_relevant_skills',
-                'interview_score', 'technical_test_score', 'total_skills',
-                'avg_test_score', 'edu_exp_score'
-            ]
-            
             # Prepare features dengan urutan yang benar
             features_df = df[CORRECT_FEATURE_ORDER].copy()
             
-            # Apply scaler pada fitur numerik
-            features_df[numeric_features] = scaler.transform(features_df[numeric_features])
+            # Debug: Cek fitur apa yang diharapkan oleh scaler
+            if hasattr(scaler, 'feature_names_in_'):
+                expected_features = scaler.feature_names_in_
+                st.info(f"🔍 Fitur yang diharapkan oleh scaler: {list(expected_features)}")
+                
+                # Gunakan hanya fitur yang diharapkan oleh scaler
+                available_features = [f for f in expected_features if f in features_df.columns]
+                missing_features = [f for f in expected_features if f not in features_df.columns]
+                
+                if missing_features:
+                    st.warning(f"⚠️ Fitur yang hilang untuk scaler: {missing_features}")
+                
+                # Apply scaler hanya pada fitur yang tersedia dan diharapkan
+                if available_features:
+                    features_df[available_features] = scaler.transform(features_df[available_features])
+                
+            else:
+                # Jika scaler tidak memiliki feature_names_in_, coba dengan semua fitur
+                try:
+                    features_df[CORRECT_FEATURE_ORDER] = scaler.transform(features_df[CORRECT_FEATURE_ORDER])
+                except Exception as scale_error:
+                    st.error(f"❌ Error dengan scaler: {str(scale_error)}")
+                    st.warning("⚠️ Menggunakan fitur tanpa preprocessing (ini mungkin tidak akurat)")
             
             # Convert ke array
             features = features_df.values
@@ -361,8 +398,25 @@ with tab1:
             })
             st.dataframe(debug_df, hide_index=True)
             
-            # Make prediction with preprocessing
-            prediction, probability = predict_eligibility(features)
+            # Option to run without preprocessing
+            use_preprocessing = st.checkbox("🔧 Gunakan Preprocessing (Recommended)", value=True)
+            
+            if use_preprocessing:
+                # Make prediction with preprocessing
+                prediction, probability = predict_eligibility(features)
+            else:
+                # Make prediction without preprocessing (fallback)
+                st.warning("⚠️ Menjalankan prediksi tanpa preprocessing - hasil mungkin tidak akurat")
+                model, _, _ = load_model_and_preprocessors()
+                if model is not None:
+                    try:
+                        prediction = model.predict([features])[0]
+                        probability = model.predict_proba([features])[0]
+                    except Exception as e:
+                        st.error(f"❌ Error dalam prediksi: {str(e)}")
+                        prediction, probability = None, None
+                else:
+                    prediction, probability = None, None
             
             if prediction is not None:
                 # Display results
