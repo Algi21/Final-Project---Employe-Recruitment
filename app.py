@@ -51,7 +51,7 @@ st.markdown("""
 # Header
 st.markdown("""
 <div class="main-header">
-    <h1>👨‍💼 Employee Eligibility Prediction System</h1>
+    <h1>'Logo_Tim.jpeg' Employee Eligibility Prediction System</h1>
     <p>Prediksi Kelayakan Kandidat Karyawan dengan Machine Learning</p>
 </div>
 """, unsafe_allow_html=True)
