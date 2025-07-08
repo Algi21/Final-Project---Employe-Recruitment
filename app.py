@@ -52,7 +52,7 @@ st.markdown("""
 st.markdown("""
 <div class="main-header">
     <div style="display: flex; align-items: center; justify-content: center; gap: 20px;">
-        <img src="data:image/jpeg;base64,{}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">
+        <img src="data:image/jpeg;base64,{}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;">
         <div>
             <h1 style="margin: 0;">Employee Eligibility Prediction System</h1>
             <p style="margin: 0;">Prediksi Kelayakan Kandidat Karyawan dengan Machine Learning</p>
