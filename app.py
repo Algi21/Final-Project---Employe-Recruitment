@@ -608,7 +608,7 @@ with tab2:
                                     
                                     fig3, ax3 = plt.subplots(figsize=(8, 6))
                                     ref_pred_pct.plot(kind='bar', stacked=True, ax=ax3, 
-                                                     color=['#ff6b6b', '#51cf66'], width=0.7)
+                                                     color=['#51cf66', '#ff6b6b'], width=0.7)
                                     ax3.set_title('Internal Referral vs Prediction (%)')
                                     ax3.set_xlabel('Internal Referral')
                                     ax3.set_ylabel('Percentage (%)')
