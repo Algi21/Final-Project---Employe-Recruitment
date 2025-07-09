@@ -641,70 +641,25 @@ with tab2:
                             # Create heatmap
                             fig4, ax4 = plt.subplots(figsize=(12, 10))
                             
-                            # Create mask for upper triangle (optional)
-                            mask = np.triu(np.ones_like(corr_matrix, dtype=bool))
-                            
-                            # Generate heatmap
+                            # Generate heatmap without mask to show full matrix
                             sns.heatmap(corr_matrix, 
                                        annot=True, 
                                        cmap='RdBu_r', 
                                        center=0,
-                                       mask=mask,
                                        square=True,
                                        fmt='.2f',
                                        cbar_kws={"shrink": .8},
+                                       linewidths=0.5,
+                                       linecolor='white',
                                        ax=ax4)
                             
-                            ax4.set_title('Feature Correlation Heatmap\n(Including Prediction Results)', 
-                                         fontsize=14, fontweight='bold')
+                            ax4.set_title('Heatmap Korelasi Pearson', 
+                                         fontsize=16, fontweight='bold', pad=20)
                             plt.xticks(rotation=45, ha='right')
                             plt.yticks(rotation=0)
                             plt.tight_layout()
                             st.pyplot(fig4)
                             
-                            # Additional correlation insights
-                            st.subheader("🔍 Correlation Insights")
-                            
-                            # Simple and robust approach for correlation insights
-                            try:
-                                # Get correlations with prediction using a more direct approach
-                                correlation_with_pred = []
-                                
-                                for feature in corr_matrix.columns:
-                                    if feature != 'prediction':
-                                        corr_val = corr_matrix.loc['prediction', feature]
-                                        correlation_with_pred.append((feature, corr_val))
-                                
-                                # Sort by correlation value
-                                correlation_with_pred.sort(key=lambda x: x[1], reverse=True)
-                                
-                                # Split into positive and negative correlations
-                                positive_correlations = [(f, v) for f, v in correlation_with_pred if v > 0]
-                                negative_correlations = [(f, v) for f, v in correlation_with_pred if v < 0]
-                                
-                                # Display results
-                                col_insights1, col_insights2 = st.columns(2)
-                                
-                                with col_insights1:
-                                    st.write("**Top Positive Correlations with Prediction:**")
-                                    if positive_correlations:
-                                        for feature, corr_val in positive_correlations[:5]:  # Top 5
-                                            st.write(f"• {feature}: {corr_val:.3f}")
-                                    else:
-                                        st.write("No positive correlations found")
-                                
-                                with col_insights2:
-                                    st.write("**Top Negative Correlations with Prediction:**")
-                                    if negative_correlations:
-                                        # Show bottom 5 (most negative)
-                                        for feature, corr_val in negative_correlations[-5:]:
-                                            st.write(f"• {feature}: {corr_val:.3f}")
-                                    else:
-                                        st.write("No negative correlations found")
-                                        
-                            except Exception as corr_error:
-                                st.error(f"Error in correlation analysis: {str(corr_error)}")
-                                st.info("Correlation insights tidak dapat ditampilkan karena masalah data")
                             
                             # Display full results
                             st.subheader("📋 Hasil Lengkap")
