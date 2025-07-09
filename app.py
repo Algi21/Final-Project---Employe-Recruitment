@@ -580,7 +580,7 @@ with tab2:
                                     
                                     fig2, ax2 = plt.subplots(figsize=(8, 6))
                                     edu_pred_pct.plot(kind='bar', stacked=True, ax=ax2, 
-                                                     color=['#ff6b6b', '#51cf66'], width=0.7)
+                                                     color=['#51cf66', '#ff6b6b'], width=0.7)
                                     ax2.set_title('Education Level vs Prediction (%)')
                                     ax2.set_xlabel('Education Level')
                                     ax2.set_ylabel('Percentage (%)')
