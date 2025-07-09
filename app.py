@@ -665,35 +665,46 @@ with tab2:
                             # Additional correlation insights
                             st.subheader("🔍 Correlation Insights")
                             
-                            # Get correlation with prediction
+                            # Simple and robust approach for correlation insights
                             try:
-                                pred_corr = corr_matrix['prediction'].drop('prediction')
-                                pred_corr_sorted = pred_corr.sort_values(ascending=False)
+                                # Get correlations with prediction using a more direct approach
+                                correlation_with_pred = []
                                 
-                                # Display top positive and negative correlations
+                                for feature in corr_matrix.columns:
+                                    if feature != 'prediction':
+                                        corr_val = corr_matrix.loc['prediction', feature]
+                                        correlation_with_pred.append((feature, corr_val))
+                                
+                                # Sort by correlation value
+                                correlation_with_pred.sort(key=lambda x: x[1], reverse=True)
+                                
+                                # Split into positive and negative correlations
+                                positive_correlations = [(f, v) for f, v in correlation_with_pred if v > 0]
+                                negative_correlations = [(f, v) for f, v in correlation_with_pred if v < 0]
+                                
+                                # Display results
                                 col_insights1, col_insights2 = st.columns(2)
                                 
                                 with col_insights1:
                                     st.write("**Top Positive Correlations with Prediction:**")
-                                    positive_corr = pred_corr_sorted[pred_corr_sorted > 0].head(5)
-                                    if len(positive_corr) > 0:
-                                        for feature, corr_val in positive_corr.items():
+                                    if positive_correlations:
+                                        for feature, corr_val in positive_correlations[:5]:  # Top 5
                                             st.write(f"• {feature}: {corr_val:.3f}")
                                     else:
                                         st.write("No positive correlations found")
                                 
                                 with col_insights2:
                                     st.write("**Top Negative Correlations with Prediction:**")
-                                    negative_corr = pred_corr_sorted[pred_corr_sorted < 0].tail(5)
-                                    if len(negative_corr) > 0:
-                                        for feature, corr_val in negative_corr.items():
+                                    if negative_correlations:
+                                        # Show bottom 5 (most negative)
+                                        for feature, corr_val in negative_correlations[-5:]:
                                             st.write(f"• {feature}: {corr_val:.3f}")
                                     else:
                                         st.write("No negative correlations found")
-                            
+                                        
                             except Exception as corr_error:
                                 st.error(f"Error in correlation analysis: {str(corr_error)}")
-                                st.info("Skipping correlation insights due to data issues")
+                                st.info("Correlation insights tidak dapat ditampilkan karena masalah data")
                             
                             # Display full results
                             st.subheader("📋 Hasil Lengkap")
