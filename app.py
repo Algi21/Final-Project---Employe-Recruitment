@@ -628,11 +628,15 @@ with tab2:
                             # Select numeric columns for correlation
                             numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
                             
-                            # Remove columns that might cause issues
+                            # Remove columns that might cause issues and duplicates
                             exclude_cols = ['probability_eligible', 'confidence']
                             numeric_columns = [col for col in numeric_columns if col not in exclude_cols]
                             
-                            # Add prediction column
+                            # Remove prediction if it already exists in numeric_columns to avoid duplication
+                            if 'prediction' in numeric_columns:
+                                numeric_columns.remove('prediction')
+                            
+                            # Create correlation dataframe with prediction column
                             correlation_df = df[numeric_columns + ['prediction']].copy()
                             
                             # Calculate correlation matrix
