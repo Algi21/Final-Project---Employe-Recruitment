@@ -435,35 +435,42 @@ with tab1:
                     confidence = max(probability) * 100
                     st.metric("Confidence Level", f"{confidence:.1f}%")
                 
-                # Probability chart
-                fig, ax = plt.subplots(figsize=(4, 2))
-                categories = ['Not Eligible', 'Eligible']
-                probs = [probability[0], probability[1]]
-                colors = ['#ff6b6b', '#51cf66']
+                # NEW LAYOUT: Chart and Summary side by side
+                chart_col, summary_col = st.columns([1, 1])
                 
-                bars = ax.bar(categories, probs, color=colors)
-                ax.set_ylabel('Probability')
-                ax.set_title('Probability Distribution')
-                ax.set_ylim(0, 1)
+                with chart_col:
+                    st.subheader("📊 Probability Distribution")
+                    # Smaller probability chart
+                    fig, ax = plt.subplots(figsize=(6, 4))
+                    categories = ['Not Eligible', 'Eligible']
+                    probs = [probability[0], probability[1]]
+                    colors = ['#ff6b6b', '#51cf66']
+                    
+                    bars = ax.bar(categories, probs, color=colors)
+                    ax.set_ylabel('Probability')
+                    ax.set_title('Probability Distribution')
+                    ax.set_ylim(0, 1)
+                    
+                    # Add value labels on bars
+                    for bar, prob in zip(bars, probs):
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                               f'{prob:.3f}', ha='center', va='bottom')
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig)
                 
-                # Add value labels on bars
-                for bar, prob in zip(bars, probs):
-                    height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                           f'{prob:.3f}', ha='center', va='bottom')
-                
-                st.pyplot(fig)
-                
-                # Feature summary
-                st.subheader("📊 Ringkasan Fitur")
-                summary_data = {
-                    'Feature': ['Education Level', 'Years Experience', 'Interview Score', 
-                               'Technical Score', 'Total Skills', 'Avg Test Score', 'Edu-Exp Score'],
-                    'Value': [education_level, years_experience, interview_score,
-                             technical_test_score, total_skills, avg_test_score, edu_exp_score]
-                }
-                summary_df = pd.DataFrame(summary_data)
-                st.dataframe(summary_df, hide_index=True)
+                with summary_col:
+                    # Feature summary
+                    st.subheader("📊 Ringkasan Fitur")
+                    summary_data = {
+                        'Feature': ['Education Level', 'Years Experience', 'Interview Score', 
+                                   'Technical Score', 'Total Skills', 'Avg Test Score', 'Edu-Exp Score'],
+                        'Value': [education_level, years_experience, interview_score,
+                                 technical_test_score, total_skills, avg_test_score, edu_exp_score]
+                    }
+                    summary_df = pd.DataFrame(summary_data)
+                    st.dataframe(summary_df, hide_index=True, use_container_width=True)
     
     else:
         st.error("❌ Model atau preprocessing components tidak dapat dimuat. Pastikan semua file tersedia.")
