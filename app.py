@@ -436,7 +436,7 @@ with tab1:
                     st.metric("Confidence Level", f"{confidence:.1f}%")
                 
                 # Probability chart
-                fig, ax = plt.subplots(figsize=(8, 4))
+                fig, ax = plt.subplots(figsize=(4, 2))
                 categories = ['Not Eligible', 'Eligible']
                 probs = [probability[0], probability[1]]
                 colors = ['#ff6b6b', '#51cf66']
@@ -643,7 +643,7 @@ with tab2:
                             corr_matrix = correlation_df.corr()
                             
                             # Create heatmap
-                            fig4, ax4 = plt.subplots(figsize=(12, 10))
+                            fig4, ax4 = plt.subplots(figsize=(10, 8))
                             
                             # Generate heatmap without mask to show full matrix
                             sns.heatmap(corr_matrix, 
@@ -658,7 +658,7 @@ with tab2:
                                        ax=ax4)
                             
                             ax4.set_title('Heatmap Korelasi Pearson', 
-                                         fontsize=16, fontweight='bold', pad=20)
+                                         fontsize=14, fontweight='bold', pad=20)
                             plt.xticks(rotation=45, ha='right')
                             plt.yticks(rotation=0)
                             plt.tight_layout()
