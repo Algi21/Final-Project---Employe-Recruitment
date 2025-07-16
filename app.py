@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
+import math
 
 # Konfigurasi halaman
 st.set_page_config(
@@ -628,62 +629,72 @@ with tab2:
                                     
                                     plt.tight_layout()
                                     st.pyplot(fig3)
-                            # Correlation Heatmap
-                            st.subheader("🔥 Correlation Heatmap")
+
+                            # KDE Distribution Plots
+                            st.subheader("📊 Feature Distribution by Eligibility")
                             
-                            # Select numeric columns for correlation
-                            numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+                            # Define numeric columns for KDE plots
+                            nums = ['years_experience', 'num_relevant_skills', 'interview_score',
+                                    'technical_test_score', 'avg_test_score']
                             
-                            # Remove columns that might cause issues and duplicates
-                            exclude_cols = ['probability_eligible', 'confidence']
-                            numeric_columns = [col for col in numeric_columns if col not in exclude_cols]
+                            # Check which columns exist in the dataframe
+                            available_nums = [col for col in nums if col in df.columns]
                             
-                            # Remove prediction if it already exists in numeric_columns to avoid duplication
-                            if 'prediction' in numeric_columns:
-                                numeric_columns.remove('prediction')
-                            
-                            # Create correlation dataframe with prediction column
-                            correlation_df = df[numeric_columns + ['prediction']].copy()
-                            
-                            # Calculate correlation matrix
-                            corr_matrix = correlation_df.corr()
-                            
-                            # Create layout with centered heatmap (50% screen width)
-                            col1, col2, col3 = st.columns([1, 2, 1])  # col2 occupies 50% of screen width
-                            
-                            with col2:
-                                # Create heatmap with adjusted size
-                                fig4, ax4 = plt.subplots(figsize=(6, 5))  # Reduced from (10, 8) to (8, 6)
+                            if available_nums:
+                                cols = 3
+                                rows = math.ceil(len(available_nums) / cols)
                                 
-                                # Generate heatmap without mask to show full matrix
-                                sns.heatmap(corr_matrix, 
-                                           annot=True, 
-                                           cmap='RdBu_r', 
-                                           center=0,
-                                           square=True,
-                                           fmt='.2f',
-                                           cbar_kws={"shrink": .8},
-                                           linewidths=0.5,
-                                           linecolor='white',
-                                           ax=ax4)
+                                fig4, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 3))
                                 
-                                ax4.set_title('Heatmap Korelasi Pearson', 
-                                             fontsize=12, fontweight='bold', pad=15)  # Reduced fontsize and padding
-                                plt.xticks(rotation=45, ha='right', fontsize=8)  # Reduced fontsize
-                                plt.yticks(rotation=0, fontsize=8)  # Reduced fontsize
+                                # Handle single row case
+                                if rows == 1:
+                                    axes = axes.reshape(1, -1)
+                                elif rows == 1 and cols == 1:
+                                    axes = np.array([axes])
+                                
+                                # Flatten axes for easier indexing
+                                axes_flat = axes.flatten()
+                                
+                                for i, col in enumerate(available_nums):
+                                    ax = axes_flat[i]
+                                    
+                                    # Create KDE plot
+                                    sns.kdeplot(
+                                        data=df,
+                                        x=col,
+                                        hue='prediction_label',
+                                        fill=True,
+                                        common_norm=False,
+                                        alpha=0.4,
+                                        linewidth=1.5,
+                                        palette={'Eligible': '#008080', 'Not Eligible': '#55acee'},
+                                        ax=ax
+                                    )
+                                    
+                                    ax.set_title(f'Distribution of {col.replace("_", " ").title()}')
+                                    ax.set_xlabel(col.replace("_", " ").title())
+                                    ax.set_ylabel('Density')
+                                
+                                # Hide unused subplots
+                                for j in range(len(available_nums), len(axes_flat)):
+                                    axes_flat[j].set_visible(False)
+                                
                                 plt.tight_layout()
                                 st.pyplot(fig4)
+                                
+                                # Add interpretation text
+                                st.info("""
+                                💡 **Interpretasi Grafik:**
+                                - Distribusi hijau (Eligible) menunjukkan pola nilai untuk kandidat yang layak
+                                - Distribusi biru (Not Eligible) menunjukkan pola nilai untuk kandidat yang tidak layak
+                                - Perbedaan yang jelas antara kedua distribusi menunjukkan fitur yang diskriminatif
+                                """)
+                            else:
+                                st.warning("⚠️ Kolom numerik yang diperlukan tidak ditemukan dalam data")
+                                st.info(f"Kolom yang dicari: {', '.join(nums)}")
+                                st.info(f"Kolom yang tersedia: {', '.join(df.columns.tolist())}")
                             
-                            # Optional: Add interpretation text below the heatmap
-                            with col2:
-                                st.markdown("""
-                                <div style='text-align: center; color: #666; font-size: 0.9em; margin-top: 10px;'>
-                                    <p><strong>Interpretasi:</strong> Warna merah menunjukkan korelasi negatif, biru menunjukkan korelasi positif.<br>
-                                    Semakin gelap warna, semakin kuat korelasinya.</p>
-                                </div>
-                                """, unsafe_allow_html=True)
        
-                            
                             # Display full results
                             st.subheader("📋 Hasil Lengkap")
                             result_df = df[['prediction_label', 'probability_eligible', 'confidence'] + expected_columns]
