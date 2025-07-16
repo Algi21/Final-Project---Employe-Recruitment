@@ -653,7 +653,7 @@ with tab2:
                             
                             with col2:
                                 # Create heatmap with adjusted size
-                                fig4, ax4 = plt.subplots(figsize=(8, 6))  # Reduced from (10, 8) to (8, 6)
+                                fig4, ax4 = plt.subplots(figsize=(6, 5))  # Reduced from (10, 8) to (8, 6)
                                 
                                 # Generate heatmap without mask to show full matrix
                                 sns.heatmap(corr_matrix, 
@@ -669,8 +669,8 @@ with tab2:
                                 
                                 ax4.set_title('Heatmap Korelasi Pearson', 
                                              fontsize=12, fontweight='bold', pad=15)  # Reduced fontsize and padding
-                                plt.xticks(rotation=45, ha='right', fontsize=10)  # Reduced fontsize
-                                plt.yticks(rotation=0, fontsize=10)  # Reduced fontsize
+                                plt.xticks(rotation=45, ha='right', fontsize=8)  # Reduced fontsize
+                                plt.yticks(rotation=0, fontsize=8)  # Reduced fontsize
                                 plt.tight_layout()
                                 st.pyplot(fig4)
                             
