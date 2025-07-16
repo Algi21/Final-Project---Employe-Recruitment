@@ -628,49 +628,62 @@ with tab2:
                                     
                                     plt.tight_layout()
                                     st.pyplot(fig3)
-                            
-                            # Correlation Heatmap
-                            st.subheader("🔥 Correlation Heatmap")
-                            
-                            # Select numeric columns for correlation
-                            numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-                            
-                            # Remove columns that might cause issues and duplicates
-                            exclude_cols = ['probability_eligible', 'confidence']
-                            numeric_columns = [col for col in numeric_columns if col not in exclude_cols]
-                            
-                            # Remove prediction if it already exists in numeric_columns to avoid duplication
-                            if 'prediction' in numeric_columns:
-                                numeric_columns.remove('prediction')
-                            
-                            # Create correlation dataframe with prediction column
-                            correlation_df = df[numeric_columns + ['prediction']].copy()
-                            
-                            # Calculate correlation matrix
-                            corr_matrix = correlation_df.corr()
-                            
-                            # Create heatmap
-                            fig4, ax4 = plt.subplots(figsize=(10, 8))
-                            
-                            # Generate heatmap without mask to show full matrix
-                            sns.heatmap(corr_matrix, 
-                                       annot=True, 
-                                       cmap='RdBu_r', 
-                                       center=0,
-                                       square=True,
-                                       fmt='.2f',
-                                       cbar_kws={"shrink": .8},
-                                       linewidths=0.5,
-                                       linecolor='white',
-                                       ax=ax4)
-                            
-                            ax4.set_title('Heatmap Korelasi Pearson', 
-                                         fontsize=14, fontweight='bold', pad=20)
-                            plt.xticks(rotation=45, ha='right')
-                            plt.yticks(rotation=0)
-                            plt.tight_layout()
-                            st.pyplot(fig4)
-                            
+                                    # Correlation Heatmap
+st.subheader("🔥 Correlation Heatmap")
+
+# Select numeric columns for correlation
+numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
+
+# Remove columns that might cause issues and duplicates
+exclude_cols = ['probability_eligible', 'confidence']
+numeric_columns = [col for col in numeric_columns if col not in exclude_cols]
+
+# Remove prediction if it already exists in numeric_columns to avoid duplication
+if 'prediction' in numeric_columns:
+    numeric_columns.remove('prediction')
+
+# Create correlation dataframe with prediction column
+correlation_df = df[numeric_columns + ['prediction']].copy()
+
+# Calculate correlation matrix
+corr_matrix = correlation_df.corr()
+
+# Create layout with centered heatmap (50% screen width)
+col1, col2, col3 = st.columns([1, 2, 1])  # col2 occupies 50% of screen width
+
+with col2:
+    # Create heatmap with adjusted size
+    fig4, ax4 = plt.subplots(figsize=(8, 6))  # Reduced from (10, 8) to (8, 6)
+    
+    # Generate heatmap without mask to show full matrix
+    sns.heatmap(corr_matrix, 
+               annot=True, 
+               cmap='RdBu_r', 
+               center=0,
+               square=True,
+               fmt='.2f',
+               cbar_kws={"shrink": .8},
+               linewidths=0.5,
+               linecolor='white',
+               ax=ax4)
+    
+    ax4.set_title('Heatmap Korelasi Pearson', 
+                 fontsize=12, fontweight='bold', pad=15)  # Reduced fontsize and padding
+    plt.xticks(rotation=45, ha='right', fontsize=10)  # Reduced fontsize
+    plt.yticks(rotation=0, fontsize=10)  # Reduced fontsize
+    plt.tight_layout()
+    st.pyplot(fig4)
+
+# Optional: Add interpretation text below the heatmap
+with col2:
+    st.markdown("""
+    <div style='text-align: center; color: #666; font-size: 0.9em; margin-top: 10px;'>
+        <p><strong>Interpretasi:</strong> Warna merah menunjukkan korelasi negatif, biru menunjukkan korelasi positif.<br>
+        Semakin gelap warna, semakin kuat korelasinya.</p>
+    </div>
+    """, unsafe_allow_html=True)
+                       
+       
                             
                             # Display full results
                             st.subheader("📋 Hasil Lengkap")
