@@ -564,7 +564,7 @@ with tab2:
                             
                             with viz_col1:
                                 # Pie chart for predictions (tetap ada)
-                                fig1, ax1 = plt.subplots(figsize=(5, 5))
+                                fig1, ax1 = plt.subplots(figsize=(6, 6))
                                 labels = ['Eligible', 'Not Eligible']
                                 sizes = [eligible_count, not_eligible_count]
                                 colors = ['#51cf66', '#ff6b6b']
